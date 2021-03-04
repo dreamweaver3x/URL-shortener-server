@@ -1,52 +1,54 @@
 package app
 
 import (
-	"SOKR/internal/data"
-	_ "SOKR/internal/shorturl"
-	"fmt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"SOKR/internal/models"
+	"SOKR/internal/repository"
+	"log"
 	"net/http"
 	_ "net/url"
 	_ "strings"
 )
 
-const dsn = "host=localhost user=db_user password=pwd123 dbname=urlcutter port=54320 sslmode=disable"
-
-func GetShortURL(w http.ResponseWriter, r *http.Request) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		panic(err)
-	}
-	link := r.URL.Query().Get("link")
-	println(link)
-	hasLong := data.CheckForElemLong(db, link)
-	if hasLong {
-		println("uzhe est' elem")
-		return
-	} else {
-		println("elema net")
-	}
-	shortUrl := data.AddElem(db, link)
-	fmt.Fprint(w, shortUrl)
-
+type Application struct {
+	repo *repository.LinksRepository
 }
 
-func RedirectWithShortUrl(w http.ResponseWriter, r *http.Request) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		panic(err)
+func NewApplication(repo *repository.LinksRepository) *Application {
+	return &Application{repo: repo}
+}
+
+func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request) {
+	u := &models.Link{FullUrl: r.URL.Query().Get("link")}
+	hasLong := a.repo.CheckForElemLong(u)
+	if hasLong {
+		log.Println("uzhe est' elem")
+		return
+	} else {
+		log.Println("elema net")
 	}
+	shortUrl, err := a.repo.Create(u)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	w.Write([]byte("http://localhost:8080/" + shortUrl.ShortUrl))
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Request) {
+	u := &models.Link{}
 	linkWithSlash := r.URL.String()
-	println(linkWithSlash)
-	link := linkWithSlash[1:]
-	hasShort := data.CheckForElemShort(db, link)
+	u.ShortUrl = linkWithSlash[1:]
+	hasShort := a.repo.CheckForElemShort(u)
 	if !hasShort {
 		println("don't have this url")
 		return
 	}
-	fullLink := data.GetLongUrl(db, link)
-	if fullLink != "" {
-		http.Redirect(w, r, fullLink, http.StatusMovedPermanently)
+	u, err := a.repo.GetLongUrl(u)
+	if err != nil {
+		log.Println(err)
+		return
 	}
+	println(u.FullUrl)
+	http.Redirect(w, r, "https://" + u.FullUrl, http.StatusMovedPermanently)
 }

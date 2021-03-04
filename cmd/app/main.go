@@ -2,7 +2,8 @@ package main
 
 import (
 	"SOKR/internal/app"
-	"SOKR/internal/data"
+	"SOKR/internal/models"
+	"SOKR/internal/repository"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
@@ -16,16 +17,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err1 := data.InitModels(db)
-	if err1 != nil {
+	err = models.InitModels(db)
+	if err != nil {
 		log.Fatal("too bad")
 	}
-	//data.ShortUrl(db)
-	//data.CheckForElemLong(db, "http://google.com")
-	//
-	//data.Create(db)
-	//
-	http.HandleFunc("/urlshortener", app.GetShortURL)
-	http.HandleFunc("/", app.RedirectWithShortUrl)
+	repo := repository.NewLinksRepository(db)
+	application := app.NewApplication(repo)
+
+	http.HandleFunc("/urlshortener", application.GetShortURL)
+	http.HandleFunc("/", application.RedirectWithShortUrl)
 	http.ListenAndServe(":8080", nil)
 }
