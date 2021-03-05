@@ -4,6 +4,10 @@ import (
 	"SOKR/internal/models"
 	"SOKR/internal/shorturl"
 	"gorm.io/gorm"
+	"log"
+	"net/http"
+	"strings"
+	"time"
 )
 
 type LinksRepository struct {
@@ -38,6 +42,9 @@ func (l *LinksRepository) Create(u *models.Link) (*models.Link, error) {
 }
 
 func (l *LinksRepository) CheckForElemLong(u *models.Link) bool {
+	u.FullUrl = strings.TrimPrefix(u.FullUrl, "http://")
+	u.FullUrl = strings.TrimPrefix(u.FullUrl, "https://")
+	u.FullUrl = strings.TrimPrefix(u.FullUrl, "www.")
 	result := l.db.Where("full_url = ?", u.FullUrl).First(&u)
 	if result.Error != nil {
 		return false
@@ -67,4 +74,37 @@ func (l *LinksRepository) GetLongUrl(u *models.Link) (*models.Link, error) {
 		return nil, result.Error
 	}
 	return u, nil
+}
+
+func (l *LinksRepository) CheckUrlsStatus() string {
+	u := &models.Link{}
+
+	for {
+		l.db.Last(u)
+		for i := 1; i <= int(u.ID)/10+1; i++ {
+			go func(id int) {
+				for k := id - 10; k < id; k++ {
+					link := models.Link{}
+					result := l.db.Where("id = ?", k).First(&link)
+					if result.Error != nil {
+						log.Println(result.Error)
+						continue
+					}
+					resp, err := http.Get("http://www." + link.FullUrl)
+
+					if err != nil || resp.StatusCode != 200 {
+						log.Println(err)
+						l.db.Table("links").Where("id = ?", k).Update("accessible", false)
+						log.Println(link.FullUrl, " SSILKA NE RABOTAET")
+						continue
+					}
+					err = resp.Body.Close()
+					if err != nil {
+						log.Println(err)
+					}
+				}
+			}(i * 10)
+		}
+		time.Sleep(time.Minute * 10)
+	}
 }

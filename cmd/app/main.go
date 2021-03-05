@@ -23,6 +23,7 @@ func main() {
 	}
 	repo := repository.NewLinksRepository(db)
 	application := app.NewApplication(repo)
+	go repo.CheckUrlsStatus()
 
 	http.HandleFunc("/urlshortener", application.GetShortURL)
 	http.HandleFunc("/", application.RedirectWithShortUrl)

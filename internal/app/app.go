@@ -22,6 +22,7 @@ func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request) {
 	hasLong := a.repo.CheckForElemLong(u)
 	if hasLong {
 		log.Println("uzhe est' elem")
+		w.Write([]byte("http://localhost:8080/" + u.ShortUrl))
 		return
 	} else {
 		log.Println("elema net")
@@ -50,5 +51,6 @@ func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	println(u.FullUrl)
-	http.Redirect(w, r, "https://" + u.FullUrl, http.StatusMovedPermanently)
+	http.Redirect(w, r, "https://www." + u.FullUrl, http.StatusMovedPermanently)
+
 }
