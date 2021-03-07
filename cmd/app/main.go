@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
@@ -23,7 +24,13 @@ func main() {
 	}
 	repo := repository.NewLinksRepository(db)
 	application := app.NewApplication(repo)
-	go repo.CheckUrlsStatus()
+	go func() {
+		for {
+			application.CheckUrlStatus()
+			time.Sleep(time.Minute*10)
+		}
+	}()
+
 
 	http.HandleFunc("/urlshortener", application.GetShortURL)
 	http.HandleFunc("/", application.RedirectWithShortUrl)

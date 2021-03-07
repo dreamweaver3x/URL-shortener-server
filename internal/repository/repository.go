@@ -5,9 +5,8 @@ import (
 	"SOKR/internal/shorturl"
 	"gorm.io/gorm"
 	"log"
-	"net/http"
+	"strconv"
 	"strings"
-	"time"
 )
 
 type LinksRepository struct {
@@ -76,35 +75,62 @@ func (l *LinksRepository) GetLongUrl(u *models.Link) (*models.Link, error) {
 	return u, nil
 }
 
-func (l *LinksRepository) CheckUrlsStatus() string {
-	u := &models.Link{}
-
-	for {
-		l.db.Last(u)
-		for i := 1; i <= int(u.ID)/10+1; i++ {
-			go func(id int) {
-				for k := id - 10; k < id; k++ {
-					link := models.Link{}
-					result := l.db.Where("id = ?", k).First(&link)
-					if result.Error != nil {
-						log.Println(result.Error)
-						continue
-					}
-					resp, err := http.Get("http://www." + link.FullUrl)
-
-					if err != nil || resp.StatusCode != 200 {
-						log.Println(err)
-						l.db.Table("links").Where("id = ?", k).Update("accessible", false)
-						log.Println(link.FullUrl, " SSILKA NE RABOTAET")
-						continue
-					}
-					err = resp.Body.Close()
-					if err != nil {
-						log.Println(err)
-					}
-				}
-			}(i * 10)
-		}
-		time.Sleep(time.Minute * 10)
+func (l *LinksRepository) GetAllLinks() []models.Link {
+	allLinks := make([]models.Link, 0)
+	l.db.Select("id","full_url", "accessible").Find(&allLinks)
+	return allLinks
+}
+func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) {
+	u := models.Link{}
+	result := l.db.Model(u).Where("id in ?", accessibleLink).Update("accessible", true)
+	if result.Error != nil {
+		log.Println(result.Error)
+	}
+	result = l.db.Model(u).Where("id in ?", inaccessibleLink).Update("accessible", false)
+	if result.Error != nil {
+		log.Println(result.Error)
 	}
 }
+
+func convSliceToStr(slice []uint) string {
+	var strSlice []string
+	for _, el := range slice {
+		strSlice = append(strSlice, strconv.Itoa(int(el)))
+	}
+	return strings.Join(strSlice, ",")
+}
+
+//func (l *LinksRepository) CheckUrlsStatus() string {
+//	u := &models.Link{}
+//
+//	for {
+//		l.db.Last(u)
+//		for i := 1; i <= int(u.ID)/10+1; i++ {
+//			go func(id int) {
+//				for k := id - 10; k < id; k++ {
+//					link := models.Link{}
+//					result := l.db.Where("id = ?", k).First(&link)
+//					if result.Error != nil {
+//						log.Println(result.Error)
+//						continue
+//					}
+//					resp, err := http.Get("http://" + link.FullUrl)
+//
+//					if err != nil || resp.StatusCode != 200 {
+//						log.Println(err)
+//						l.db.Table("links").Where("id = ?", k).Update("accessible", false)
+//						log.Println(link.FullUrl, " SSILKA NE RABOTAET")
+//						continue
+//
+//					}
+//					l.db.Table("links").Where("id = ?", k).Update("accessible", true)
+//					err = resp.Body.Close()
+//					if err != nil {
+//						log.Println(err)
+//					}
+//				}
+//			}(i * 10)
+//		}
+//		time.Sleep(time.Minute * 10)
+//	}
+//}

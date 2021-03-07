@@ -7,7 +7,13 @@ import (
 	"net/http"
 	_ "net/url"
 	_ "strings"
+	"sync"
 )
+
+type UrlSlice struct {
+	sync.Mutex
+	idSlice []uint
+}
 
 type Application struct {
 	repo *repository.LinksRepository
@@ -51,6 +57,36 @@ func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	println(u.FullUrl)
-	http.Redirect(w, r, "https://www." + u.FullUrl, http.StatusMovedPermanently)
+	http.Redirect(w, r, "https://www."+u.FullUrl, http.StatusPermanentRedirect)
 
+}
+
+func (a *Application) CheckUrlStatus() {
+	allLinks := a.repo.GetAllLinks()
+	wg := sync.WaitGroup{}
+	accessibleLinks := UrlSlice{}
+	inaccessibleLinks := UrlSlice{}
+	for i := 0; i < len(allLinks); i++ {
+		wg.Add(1)
+		go func(id int, link string) {
+			defer wg.Done()
+			resp, err := http.Get("http://" + link)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				log.Println(err)
+				if allLinks[id].Accessible == true {
+					inaccessibleLinks.Lock()
+					inaccessibleLinks.idSlice = append(inaccessibleLinks.idSlice, allLinks[id].Model.ID)
+					inaccessibleLinks.Unlock()
+				} else {
+					if allLinks[id].Accessible == false {
+						accessibleLinks.Lock()
+						accessibleLinks.idSlice = append(accessibleLinks.idSlice, allLinks[id].Model.ID)
+						accessibleLinks.Unlock()
+					}
+				}
+			}
+		}(i, allLinks[i].FullUrl)
+	}
+	wg.Wait()
+	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
 }
