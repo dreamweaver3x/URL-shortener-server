@@ -27,11 +27,11 @@ func main() {
 	go func() {
 		for {
 			application.CheckUrlStatus()
-			time.Sleep(time.Minute*10)
+			time.Sleep(time.Minute * 10)
 		}
 	}()
 
-
+	http.HandleFunc("/getshortstats", application.GetShortUrlStats)
 	http.HandleFunc("/urlshortener", application.GetShortURL)
 	http.HandleFunc("/", application.RedirectWithShortUrl)
 	http.ListenAndServe(":8080", nil)

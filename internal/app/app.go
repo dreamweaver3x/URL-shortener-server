@@ -3,6 +3,7 @@ package app
 import (
 	"SOKR/internal/models"
 	"SOKR/internal/repository"
+	"encoding/json"
 	"log"
 	"net/http"
 	_ "net/url"
@@ -77,16 +78,44 @@ func (a *Application) CheckUrlStatus() {
 					inaccessibleLinks.Lock()
 					inaccessibleLinks.idSlice = append(inaccessibleLinks.idSlice, allLinks[id].Model.ID)
 					inaccessibleLinks.Unlock()
-				} else {
-					if allLinks[id].Accessible == false {
-						accessibleLinks.Lock()
-						accessibleLinks.idSlice = append(accessibleLinks.idSlice, allLinks[id].Model.ID)
-						accessibleLinks.Unlock()
-					}
+				}
+			} else {
+				if allLinks[id].Accessible == false {
+					accessibleLinks.Lock()
+					accessibleLinks.idSlice = append(accessibleLinks.idSlice, allLinks[id].Model.ID)
+					accessibleLinks.Unlock()
 				}
 			}
 		}(i, allLinks[i].FullUrl)
 	}
 	wg.Wait()
 	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
+}
+
+func (a *Application) GetShortUrlStats(w http.ResponseWriter, r *http.Request) {
+	u := &models.Link{ShortUrl: r.URL.Query().Get("short")}
+	err := a.repo.GetStats(u)
+	if err != nil {
+		w.Write([]byte("cant get stats for this short uri"))
+		log.Println(err)
+		return
+	}
+	stats := struct {
+		FullUrl        string `json:"full_url"`
+		NumOfRedirects uint32 `json:"number_of_redirects"`
+		Accessible     bool   `json:"access_status"`
+	}{
+		FullUrl:        u.FullUrl,
+		NumOfRedirects: u.NumsOfRedirects,
+		Accessible:     u.Accessible,
+	}
+	answer, err := json.Marshal(stats)
+	println(answer)
+	if err != nil {
+		w.Write([]byte("cant convert stats to json for this short uri"))
+		log.Println(err)
+		return
+	}
+
+	w.Write(answer)
 }

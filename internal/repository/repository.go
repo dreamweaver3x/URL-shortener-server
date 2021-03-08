@@ -5,7 +5,6 @@ import (
 	"SOKR/internal/shorturl"
 	"gorm.io/gorm"
 	"log"
-	"strconv"
 	"strings"
 )
 
@@ -92,45 +91,12 @@ func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) 
 	}
 }
 
-func convSliceToStr(slice []uint) string {
-	var strSlice []string
-	for _, el := range slice {
-		strSlice = append(strSlice, strconv.Itoa(int(el)))
+func (l *LinksRepository) GetStats(u *models.Link)  error {
+	result := l.db.Where("short_url = ?", u.ShortUrl).First(&u)
+	if result.Error != nil {
+		return result.Error
 	}
-	return strings.Join(strSlice, ",")
+	return nil
 }
 
-//func (l *LinksRepository) CheckUrlsStatus() string {
-//	u := &models.Link{}
-//
-//	for {
-//		l.db.Last(u)
-//		for i := 1; i <= int(u.ID)/10+1; i++ {
-//			go func(id int) {
-//				for k := id - 10; k < id; k++ {
-//					link := models.Link{}
-//					result := l.db.Where("id = ?", k).First(&link)
-//					if result.Error != nil {
-//						log.Println(result.Error)
-//						continue
-//					}
-//					resp, err := http.Get("http://" + link.FullUrl)
-//
-//					if err != nil || resp.StatusCode != 200 {
-//						log.Println(err)
-//						l.db.Table("links").Where("id = ?", k).Update("accessible", false)
-//						log.Println(link.FullUrl, " SSILKA NE RABOTAET")
-//						continue
-//
-//					}
-//					l.db.Table("links").Where("id = ?", k).Update("accessible", true)
-//					err = resp.Body.Close()
-//					if err != nil {
-//						log.Println(err)
-//					}
-//				}
-//			}(i * 10)
-//		}
-//		time.Sleep(time.Minute * 10)
-//	}
-//}
+
