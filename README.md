@@ -14,7 +14,7 @@ func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request)
 ```
 It returns a short URL to client
 If you want a new short URl, type
-http:/localhost:8080/urlshortener?link=www.iwantthislinktobeshorter.com
+[http:/localhost:8080/urlshortener?link=www.iwantthislinktobeshorter.com](http:/localhost:8080/urlshortener?link=www.iwantthislinktobeshorter.com)
 You'll get something like http://localhost:8080/aaaaI
 _____
 ```golang
