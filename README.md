@@ -38,5 +38,5 @@ This method checks every URL in databse for accessibility
 # how to run 
 - Clone repository
 - Create database. You can use this command: `docker-compose exec pgdb psql -U db_user -c 'CREATE DATABASE URLcutter'`
-- Run the main file (check config in main.go, so you'r connection to database will be successful), you can use commands in makeFile
+- Run the main file (check config in main.go, so your connection to database will be successful), you can use commands in makeFile
 - Try to add new links in database
