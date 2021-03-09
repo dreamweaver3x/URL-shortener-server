@@ -1,4 +1,4 @@
-# URL-shortener-server
+# URL shortener server
 This is my http web server. It can shrink the URL and contain information about the number redirects and accessibility of the link, using the short URL.
 ## packages
 ### repository
