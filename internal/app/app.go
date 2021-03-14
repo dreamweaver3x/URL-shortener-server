@@ -4,6 +4,7 @@ import (
 	"SOKR/internal/models"
 	"SOKR/internal/repository"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/url"
@@ -17,6 +18,11 @@ type UrlSlice struct {
 	idSlice []uint
 }
 
+type ShortLinkRequest struct {
+	FullUrl string `json:"full_url"`
+	ShortUrl string `json:"short_url"`
+}
+
 type Application struct {
 	repo *repository.LinksRepository
 }
@@ -26,16 +32,38 @@ func NewApplication(repo *repository.LinksRepository) *Application {
 }
 
 func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request) {
-	u := &models.Link{FullUrl: r.URL.Query().Get("link")}
+	req := &ShortLinkRequest{}
+	u := &models.Link{}
+	body, err := ioutil.ReadAll(r.Body)
+	log.Println(string(body))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	err = json.Unmarshal(body, req)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	u.FullUrl = req.FullUrl
 	u.FullUrl = strings.TrimPrefix(u.FullUrl, "http://")
 	u.FullUrl = strings.TrimPrefix(u.FullUrl, "https://")
 	u.FullUrl = strings.TrimPrefix(u.FullUrl, "www.")
-	shortUrl, err := a.repo.Create(u)
+	err = a.repo.Create(u)
 	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	req.ShortUrl = "http://localhost:8080/" + u.ShortUrl
+	answer, err := json.Marshal(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
-	w.Write([]byte("http://localhost:8080/" + shortUrl.ShortUrl))
+
+	w.Write(answer)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -54,81 +82,64 @@ func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Reques
 
 }
 
-func (a *Application) CheckUrlStatus() {
+
+
+func (a *Application) CheckUrlStatusNew() {
 	wg := sync.WaitGroup{}
 	ch := make(chan models.Link, 500)
 	accessibleLinks := UrlSlice{}
 	inaccessibleLinks := UrlSlice{}
 	var i uint
+	var x models.Link
 	for {
 		err := a.repo.GetFiveHundredLinks(i, &ch)
 		if err != nil {
-			log.Println("NU VOR BLIN", err)
+			log.Println("NU VOT BLIN", err)
 			break
 		}
-		for x := range ch {
-			wg.Add(1)
-			go func(link models.Link) {
-				defer wg.Done()
-				resp, err := http.Get("http://" + link.FullUrl)
-				if err != nil || resp.StatusCode != http.StatusOK {
-					log.Println(err)
-					if err == nil {
-						log.Println(resp.StatusCode, "  ", link.FullUrl)
+
+	L:
+		for {
+			select {
+			case x = <-ch:
+				wg.Add(1)
+				go func(link models.Link) {
+					//println(x.FullUrl)
+					defer wg.Done()
+					resp, err := http.Get("http://" + link.FullUrl)
+					if err != nil || resp.StatusCode != http.StatusOK {
+						//log.Println(err)
+						if err == nil {
+							//log.Println(resp.StatusCode, "  ", link.FullUrl)
+						}
+						if link.Accessible == true {
+							inaccessibleLinks.Lock()
+							inaccessibleLinks.idSlice = append(inaccessibleLinks.idSlice, link.Model.ID)
+							inaccessibleLinks.Unlock()
+						}
+					} else {
+						if link.Accessible == false {
+							accessibleLinks.Lock()
+							accessibleLinks.idSlice = append(accessibleLinks.idSlice, link.Model.ID)
+							accessibleLinks.Unlock()
+							resp.Body.Close()
+						}
 					}
-					if link.Accessible == true {
-						inaccessibleLinks.Lock()
-						inaccessibleLinks.idSlice = append(inaccessibleLinks.idSlice, link.Model.ID)
-						inaccessibleLinks.Unlock()
-					}
-				} else {
-					if link.Accessible == false {
-						accessibleLinks.Lock()
-						accessibleLinks.idSlice = append(accessibleLinks.idSlice, link.Model.ID)
-						accessibleLinks.Unlock()
-						resp.Body.Close()
-					}
-				}
-			}(x)
+				}(x)
+
+			default:
+
+				break L
+			}
+
 		}
 		println("YA TUT VSEM KU")
 		i++
 	}
 	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
 	wg.Wait()
+	log.Println("zaconchil smotret' ssilki")
 }
-
-/*
-func (a *Application) CheckUrlStatusOld() {
-	allLinks := a.repo.GetAllLinks()
-	wg := sync.WaitGroup{}
-	accessibleLinks := UrlSlice{}
-	inaccessibleLinks := UrlSlice{}
-	for i := 0; i < len(allLinks); i++ {
-		wg.Add(1)
-		go func(id int, link string) {
-			defer wg.Done()
-			resp, err := http.Get("http://" + link)
-			if err != nil || resp.StatusCode != http.StatusOK {
-				log.Println(err)
-				if allLinks[id].Accessible == true {
-					inaccessibleLinks.Lock()
-					inaccessibleLinks.idSlice = append(inaccessibleLinks.idSlice, allLinks[id].Model.ID)
-					inaccessibleLinks.Unlock()
-				}
-			} else {
-				if allLinks[id].Accessible == false {
-					accessibleLinks.Lock()
-					accessibleLinks.idSlice = append(accessibleLinks.idSlice, allLinks[id].Model.ID)
-					accessibleLinks.Unlock()
-				}
-			}
-		}(i, allLinks[i].FullUrl)
-	}
-	wg.Wait()
-	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
-}
-*/
 
 func (a *Application) GetShortUrlStats(w http.ResponseWriter, r *http.Request) {
 	u := &models.Link{ShortUrl: r.URL.Query().Get("short")}

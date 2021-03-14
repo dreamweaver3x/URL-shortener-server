@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -26,15 +27,15 @@ func main() {
 	application := app.NewApplication(repo)
 	go func() {
 		for {
-			application.CheckUrlStatus()
+			application.CheckUrlStatusNew()
 			time.Sleep(time.Minute * 10)
 		}
 	}()
 
+r := mux.NewRouter()
 
-
-	http.HandleFunc("/getshortstats", application.GetShortUrlStats)
-	http.HandleFunc("/urlshortener", application.GetShortURL)
-	http.HandleFunc("/", application.RedirectWithShortUrl)
-	http.ListenAndServe(":8080", nil)
+	r.HandleFunc("/shortstats", application.GetShortUrlStats)
+	r.HandleFunc("/urlshortener", application.GetShortURL).Methods("POST")
+	r.HandleFunc("/", application.RedirectWithShortUrl)
+	http.ListenAndServe(":8080", r)
 }
