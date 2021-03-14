@@ -31,6 +31,8 @@ func main() {
 		}
 	}()
 
+
+
 	http.HandleFunc("/getshortstats", application.GetShortUrlStats)
 	http.HandleFunc("/urlshortener", application.GetShortURL)
 	http.HandleFunc("/", application.RedirectWithShortUrl)
