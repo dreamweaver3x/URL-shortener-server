@@ -78,17 +78,17 @@ return nil
 
 
 
-func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) {
+func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) error {
 	u := models.Link{}
 	result := l.db.Model(u).Where("id in ?", accessibleLink).Update("accessible", true)
 	if result.Error != nil {
-		log.Println(result.Error)
+		return result.Error
 	}
 	result = l.db.Model(u).Where("id in ?", inaccessibleLink).Update("accessible", false)
 	if result.Error != nil {
-		log.Println(result.Error)
+		return result.Error
 	}
-	log.Println("URAAAAAAAA, vse pomenyal")
+	return nil
 }
 
 func (l *LinksRepository) GetStats(u *models.Link)  error {

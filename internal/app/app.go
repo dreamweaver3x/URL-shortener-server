@@ -42,8 +42,8 @@ func (a *Application) Start(port string) {
 
 func (a *Application) GetShortURL(c echo.Context) error {
 	req := &struct {
-		FullUrl        string `json:"full_url"`
-		ShortUrl       string `json:"short_url"`
+		FullUrl  string `json:"full_url"`
+		ShortUrl string `json:"short_url"`
 	}{}
 	u := &models.Link{}
 	if err := c.Bind(req); err != nil {
@@ -133,7 +133,9 @@ func (a *Application) CheckUrlStatusNew() {
 							accessibleLinks.Lock()
 							accessibleLinks.idSlice = append(accessibleLinks.idSlice, link.Model.ID)
 							accessibleLinks.Unlock()
-							resp.Body.Close()
+							if err := resp.Body.Close(); err != nil {
+								log.Println(err)
+							}
 						}
 					}
 
@@ -147,6 +149,10 @@ func (a *Application) CheckUrlStatusNew() {
 		i++
 	}
 	wg.Wait()
-	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
-	log.Println("checked all urls")
+	err := a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
+	if err != nil {
+		log.Println(err)
+	} else {
+		log.Println("checked all urls")
+	}
 }
