@@ -36,6 +36,5 @@ Just for config.
 
 # how to run 
 - Clone repository
-- Create database. You can use this command: `docker-compose exec pgdb psql -U db_user -c 'CREATE DATABASE URLcutter'`
-- Run the main file (with your config), you can use commands in Makefile
+- `docker-compose up -d` in console, it'll create db and server.
 - Try to add new links in database
