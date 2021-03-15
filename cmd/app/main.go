@@ -5,16 +5,33 @@ import (
 	"SOKR/internal/app"
 	"SOKR/internal/models"
 	"SOKR/internal/repository"
+	"flag"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 )
 
 func main() {
-	conf := config.Load()
-	db, err := gorm.Open(postgres.Open(conf.Dsn), &gorm.Config{})
+	dev := flag.Bool("dev",
+		false,
+		"enable reading config from .env file instead of system env vars",
+	)
+	flag.Parse()
+
+	if *dev {
+		if err := godotenv.Load(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	conf, err := config.Load()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+	db, err := gorm.Open(postgres.Open(conf.DSN), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
 	}
 	err = models.InitModels(db)
 	if err != nil {
@@ -22,5 +39,5 @@ func main() {
 	}
 	repo := repository.NewLinksRepository(db)
 	application := app.NewApplication(repo)
-	application.Start(conf.Port)
+	application.Start(conf.ListenAddress())
 }
