@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gorm.io/gorm"
 	"log"
+	"sync"
 )
 
 type LinksRepository struct {
@@ -39,16 +40,16 @@ func (l *LinksRepository) Create(u *models.Link)  error {
 	return  nil
 }
 
-func (l *LinksRepository) GetLongUrl(u *models.Link) (*models.Link, error) {
-	result := l.db.Where("short_url = ?", u.ShortUrl).First(&u)
+func (l *LinksRepository) GetLongUrl(u *models.Link)  error {
+	result := l.db.Where("short_url = ?", u.ShortUrl).First(u)
 	if result.Error != nil {
-		return nil, result.Error
+		return  result.Error
 	}
 	result = l.db.Model(u).Where("short_url = ?", u.ShortUrl).Update("nums_of_redirects", gorm.Expr("nums_of_redirects + ?", 1))
 	if result.Error != nil {
-		return nil, result.Error
+		return  result.Error
 	}
-	return u, nil
+	return nil
 }
 func (l *LinksRepository) GetFiveHundredLinks(id uint, ch *chan models.Link)  error {
 links := make([]models.Link, 0)
@@ -61,19 +62,21 @@ if result.Error != nil {
 if result.RowsAffected == 0 {
 	return fmt.Errorf("net strok na id=%d", id)
 }
+wg := sync.WaitGroup{}
 for i := 0; i < len(links); i++ {
+	wg.Add(1)
+	go func(i int) {
+		defer wg.Done()
 		*ch <- links[i]
+	}(i)
 }
+wg.Wait()
 
 return nil
 }
 
 
-/*func (l *LinksRepository) GetAllLinks() []models.Link {
-	allLinks := make([]models.Link, 0)
-	l.db.Select("id","full_url", "accessible").Find(&allLinks)
-	return allLinks
-}*/
+
 
 func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) {
 	u := models.Link{}
@@ -85,7 +88,7 @@ func (l *LinksRepository) UpdateAccess(inaccessibleLink, accessibleLink []uint) 
 	if result.Error != nil {
 		log.Println(result.Error)
 	}
-	log.Println("URAAAAAAAA")
+	log.Println("URAAAAAAAA, vse pomenyal")
 }
 
 func (l *LinksRepository) GetStats(u *models.Link)  error {

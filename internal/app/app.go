@@ -3,24 +3,18 @@ package app
 import (
 	"SOKR/internal/models"
 	"SOKR/internal/repository"
-	"encoding/json"
-	"io/ioutil"
+	"github.com/labstack/echo/v4"
 	"log"
 	"net/http"
 	_ "net/url"
-	"strings"
 	_ "strings"
 	"sync"
+	"time"
 )
 
 type UrlSlice struct {
 	sync.Mutex
 	idSlice []uint
-}
-
-type ShortLinkRequest struct {
-	FullUrl string `json:"full_url"`
-	ShortUrl string `json:"short_url"`
 }
 
 type Application struct {
@@ -31,58 +25,76 @@ func NewApplication(repo *repository.LinksRepository) *Application {
 	return &Application{repo: repo}
 }
 
-func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request) {
-	req := &ShortLinkRequest{}
+func (a *Application) Start() {
+	go func() {
+		for {
+			a.CheckUrlStatusNew()
+			time.Sleep(time.Minute * 10)
+		}
+	}()
+
+	e := echo.New()
+	e.GET("/shortstats", a.GetShortUrlStats)
+	e.POST("/urlshortener", a.GetShortURL)
+	e.GET("/:uri", a.RedirectWithShortUrl)
+	e.Logger.Fatal(e.Start(":8080"))
+}
+
+func (a *Application) GetShortURL(c echo.Context) error {
+	req := &struct {
+		FullUrl        string `json:"full_url"`
+		ShortUrl       string `json:"short_url"`
+	}{}
 	u := &models.Link{}
-	body, err := ioutil.ReadAll(r.Body)
-	log.Println(string(body))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	err = json.Unmarshal(body, req)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if err := c.Bind(req); err != nil {
+		log.Println(err)
+		return err
 	}
 	u.FullUrl = req.FullUrl
-	u.FullUrl = strings.TrimPrefix(u.FullUrl, "http://")
-	u.FullUrl = strings.TrimPrefix(u.FullUrl, "https://")
-	u.FullUrl = strings.TrimPrefix(u.FullUrl, "www.")
-	err = a.repo.Create(u)
+	err := a.repo.Create(u)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 	req.ShortUrl = "http://localhost:8080/" + u.ShortUrl
-	answer, err := json.Marshal(req)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Println(err)
-		return
-	}
 
-	w.Write(answer)
-	w.WriteHeader(http.StatusOK)
+	return c.JSON(http.StatusAccepted, req)
 }
 
-func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Request) {
+func (a *Application) RedirectWithShortUrl(c echo.Context) error {
 	u := &models.Link{}
-	linkWithSlash := r.URL.String()
-	u.ShortUrl = linkWithSlash[1:]
-	u, err := a.repo.GetLongUrl(u)
+	u.ShortUrl = c.Param("uri")
+	log.Println("short = ", u.ShortUrl)
+	err := a.repo.GetLongUrl(u)
 	if err != nil {
-		w.Write([]byte("this short url doesn't work"))
-		log.Println(err)
-		return
+		return err
 	}
 	println(u.FullUrl)
-	http.Redirect(w, r, "http://"+u.FullUrl, http.StatusPermanentRedirect)
+
+	return c.Redirect(http.StatusMovedPermanently, u.FullUrl)
 
 }
 
+func (a *Application) GetShortUrlStats(c echo.Context) error {
+	u := &models.Link{}
+	req := &struct {
+		FullUrl        string `json:"full_url"`
+		ShortUrl       string `json:"short_url"`
+		NumOfRedirects uint32 `json:"number_of_redirects"`
+		Accessible     bool   `json:"access_status"`
+	}{}
+	if err := c.Bind(req); err != nil {
+		return err
+	}
+	u.ShortUrl = req.ShortUrl
+	if err := a.repo.GetStats(u); err != nil {
+		return err
+	}
+	req.FullUrl = u.FullUrl
+	req.Accessible = u.Accessible
+	req.NumOfRedirects = u.NumsOfRedirects
 
+	return c.JSON(http.StatusAccepted, req)
+}
 
 func (a *Application) CheckUrlStatusNew() {
 	wg := sync.WaitGroup{}
@@ -94,23 +106,22 @@ func (a *Application) CheckUrlStatusNew() {
 	for {
 		err := a.repo.GetFiveHundredLinks(i, &ch)
 		if err != nil {
-			log.Println("NU VOT BLIN", err)
+			log.Println(err)
 			break
 		}
-
 	L:
 		for {
 			select {
 			case x = <-ch:
 				wg.Add(1)
 				go func(link models.Link) {
-					//println(x.FullUrl)
+					println(i)
 					defer wg.Done()
-					resp, err := http.Get("http://" + link.FullUrl)
+					resp, err := http.Get(link.FullUrl)
 					if err != nil || resp.StatusCode != http.StatusOK {
-						//log.Println(err)
+						log.Println(err)
 						if err == nil {
-							//log.Println(resp.StatusCode, "  ", link.FullUrl)
+							log.Println(resp.StatusCode, "  ", link.FullUrl)
 						}
 						if link.Accessible == true {
 							inaccessibleLinks.Lock()
@@ -125,46 +136,17 @@ func (a *Application) CheckUrlStatusNew() {
 							resp.Body.Close()
 						}
 					}
+
 				}(x)
 
 			default:
 
 				break L
 			}
-
 		}
-		println("YA TUT VSEM KU")
 		i++
 	}
-	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
 	wg.Wait()
-	log.Println("zaconchil smotret' ssilki")
-}
-
-func (a *Application) GetShortUrlStats(w http.ResponseWriter, r *http.Request) {
-	u := &models.Link{ShortUrl: r.URL.Query().Get("short")}
-	err := a.repo.GetStats(u)
-	if err != nil {
-		w.Write([]byte("cant get stats for this short uri"))
-		log.Println(err)
-		return
-	}
-	stats := struct {
-		FullUrl        string `json:"full_url"`
-		NumOfRedirects uint32 `json:"number_of_redirects"`
-		Accessible     bool   `json:"access_status"`
-	}{
-		FullUrl:        u.FullUrl,
-		NumOfRedirects: u.NumsOfRedirects,
-		Accessible:     u.Accessible,
-	}
-	answer, err := json.Marshal(stats)
-	println(answer)
-	if err != nil {
-		w.Write([]byte("cant convert stats to json for this short uri"))
-		log.Println(err)
-		return
-	}
-
-	w.Write(answer)
+	a.repo.UpdateAccess(inaccessibleLinks.idSlice, accessibleLinks.idSlice)
+	log.Println("checked all urls")
 }
