@@ -1,5 +1,5 @@
 # URL shortener server
-This is my http web server. It can shrink the URL and contain information about the number redirects and accessibility of the link, using the short URL.
+This is my http web server with echo framework. It can shrink the URL and contain information about the number redirects and accessibility of the link, using the short URL.
 ## packages
 ### repository
 Here's where all actions with database happen.
@@ -10,33 +10,32 @@ It makes a new short URL based on id in the database. For the 1st link it return
 ### app
 All 3 handlers are in this package. 
 ```golang
-func (a *Application) GetShortURL(w http.ResponseWriter, r *http.Request)
+func (a *Application) GetShortURL(c echo.Context) error 
 ```
-It returns a short URL to client
-If you want a new short URl, type
-[http:/localhost:8080/urlshortener?link=www.iwantthislinktobeshorter.com](http:/localhost:8080/urlshortener?link=www.iwantthislinktobeshorter.com)
-You'll get something like http://localhost:8080/aaaaI
+It returns a short URL in JSON to client using POST method.
+
 _____
 ```golang
-func (a *Application) RedirectWithShortUrl(w http.ResponseWriter, r *http.Request)
+func (a *Application) RedirectWithShortUrl(c echo.Context) error
 ```
-It Redirects you to address, based on short URL
-So http://localhost:8080/aaaaI (from previous func) will get you to www.iwantthislinktobeshorter.com
+It Redirects you to address, based on short URL using GET method.
+So http://localhost:8080/aaaaI will get you to www.iwantthislinktobeshorter.com
 _____
 ```golang
-func (a *Application) GetShortUrlStats(w http.ResponseWriter, r *http.Request)
+func (a *Application) GetShortUrlStats(c echo.Context) error 
 ```
-This Hanlder returns information about URL
-example: for http://localhost:8080/getshortstats?short=aaaag you'll get {"full_url":"iwantthislinktobeshorter.com","number_of_redirects":0,"access_status":true}
+This Hanlder returns information about URL in JSON using GET method.
+
 ____
 ```golang
 func (a *Application) CheckUrlStatus()
 ```
 This method checks every URL in databse for accessibility
-
+### config
+Just for config.
 
 # how to run 
 - Clone repository
 - Create database. You can use this command: `docker-compose exec pgdb psql -U db_user -c 'CREATE DATABASE URLcutter'`
-- Run the main file (check config in main.go, so your connection to database will be successful), you can use commands in Makefile
+- Run the main file (with your config), you can use commands in Makefile
 - Try to add new links in database
