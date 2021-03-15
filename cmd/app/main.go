@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SOKR/config"
 	"SOKR/internal/app"
 	"SOKR/internal/models"
 	"SOKR/internal/repository"
@@ -10,9 +11,8 @@ import (
 )
 
 func main() {
-
-	dsn := "host=localhost user=db_user password=pwd123 dbname=urlcutter port=54320 sslmode=disable"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	conf := config.Load()
+	db, err := gorm.Open(postgres.Open(conf.Dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}
@@ -22,5 +22,5 @@ func main() {
 	}
 	repo := repository.NewLinksRepository(db)
 	application := app.NewApplication(repo)
-	application.Start()
+	application.Start(conf.Port)
 }

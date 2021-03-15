@@ -25,7 +25,7 @@ func NewApplication(repo *repository.LinksRepository) *Application {
 	return &Application{repo: repo}
 }
 
-func (a *Application) Start() {
+func (a *Application) Start(port string) {
 	go func() {
 		for {
 			a.CheckUrlStatusNew()
@@ -37,7 +37,7 @@ func (a *Application) Start() {
 	e.GET("/shortstats", a.GetShortUrlStats)
 	e.POST("/urlshortener", a.GetShortURL)
 	e.GET("/:uri", a.RedirectWithShortUrl)
-	e.Logger.Fatal(e.Start(":8080"))
+	e.Logger.Fatal(e.Start(port))
 }
 
 func (a *Application) GetShortURL(c echo.Context) error {
