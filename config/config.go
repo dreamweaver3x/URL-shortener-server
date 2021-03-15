@@ -1,25 +1,25 @@
 package config
 
 import (
-	"github.com/spf13/viper"
-	"log"
+	"fmt"
+	"github.com/vrischmann/envconfig"
+
 )
 
 type Config struct {
-	Dsn string
-	Port string
-
+	AppName string `envconfig:"APP_NAME"`
+	DSN     string `envconfig:"DB_DSN"`
+	Port    uint   `envconfig:"PORT,default=8080"`
 }
 
-func Load() *Config {
-	conf := &Config{}
-	viper.SetConfigFile(".env")
-	err := viper.ReadInConfig()
-	if err != nil {
-		log.Fatalf("Error while reading config file %s", err)
-	}
-	conf.Dsn = viper.Get("DB_DSN").(string)
-	conf.Port = viper.Get("PORT").(string)
+func (c *Config) ListenAddress() string {
+	return fmt.Sprintf(":%d", c.Port)
+}
 
-	return conf
+func Load() (*Config, error) {
+	var c *Config
+	if err := envconfig.Init(&c); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
