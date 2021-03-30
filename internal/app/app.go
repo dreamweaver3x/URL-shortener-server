@@ -48,12 +48,12 @@ func (a *Application) GetShortURL(c echo.Context) error {
 	u := &models.Link{}
 	if err := c.Bind(req); err != nil {
 		log.Println(err)
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	u.FullUrl = req.FullUrl
 	err := a.repo.Create(u)
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	req.ShortUrl = "http://localhost:8080/" + u.ShortUrl
 
@@ -66,9 +66,8 @@ func (a *Application) RedirectWithShortUrl(c echo.Context) error {
 	log.Println("short = ", u.ShortUrl)
 	err := a.repo.GetLongUrl(u)
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	println(u.FullUrl)
 
 	return c.Redirect(http.StatusMovedPermanently, u.FullUrl)
 
@@ -83,11 +82,11 @@ func (a *Application) GetShortUrlStats(c echo.Context) error {
 		Accessible     bool   `json:"access_status"`
 	}{}
 	if err := c.Bind(req); err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	u.ShortUrl = req.ShortUrl
 	if err := a.repo.GetStats(u); err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	req.FullUrl = u.FullUrl
 	req.Accessible = u.Accessible
@@ -115,7 +114,6 @@ func (a *Application) CheckUrlStatusNew() {
 			case x = <-ch:
 				wg.Add(1)
 				go func(link models.Link) {
-					println(i)
 					defer wg.Done()
 					resp, err := http.Get(link.FullUrl)
 					if err != nil || resp.StatusCode != http.StatusOK {
